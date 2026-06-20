@@ -32,6 +32,7 @@ export async function POST(request: Request, { params }: { params: { slug: strin
     const daysElapsed = Math.max(0, Math.ceil((paymentDate.getTime() - baseDate.getTime()) / 86400000));
     const preview = previewRepayment(loan.principalRemaining, amount, settings, daysElapsed);
     const nextStatus = getNextLoanStatus(preview.principalAfter, preview.principalPaid);
+    const nextDueDays = loan.installmentDays || loan.periodDays || settings.periodDays;
 
     const repayment = await prisma.$transaction(async (tx) => {
       const saved = await tx.repayment.create({
@@ -54,7 +55,7 @@ export async function POST(request: Request, { params }: { params: { slug: strin
         data: {
           principalRemaining: preview.principalAfter,
           lastInterestCalcDate: paymentDate,
-          nextDueDate: dateFromText(addDays(String(body.paymentDate), settings.periodDays)),
+          nextDueDate: dateFromText(addDays(String(body.paymentDate), nextDueDays)),
           currentAccruedInterest: 0,
           status: nextStatus
         }

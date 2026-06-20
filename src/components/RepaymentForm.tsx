@@ -46,42 +46,29 @@ export default function RepaymentForm({ slug, loanId, principalRemaining, intere
   }
 
   return (
-    <div className="rounded-xl border bg-slate-50 p-4">
-      <h2 className="font-bold">新增實際還款</h2>
-      <p className="mt-1 text-sm text-slate-600">目前剩餘本金 {principalRemaining.toLocaleString("zh-TW")}。系統依實際天數計息，先抵利息，剩餘金額回本金。</p>
-      <div className="mt-3 grid gap-3 sm:grid-cols-2">
-        <label className="text-sm font-medium">還款日期
-          <input className="mt-1 w-full rounded-lg border px-3 py-2" type="date" value={paymentDate} onChange={(e) => setPaymentDate(e.target.value)} />
-        </label>
-        <label className="text-sm font-medium">還款金額
-          <input className="mt-1 w-full rounded-lg border px-3 py-2" type="number" value={amount} onChange={(e) => setAmount(e.target.value)} />
-        </label>
-        <label className="text-sm font-medium sm:col-span-2">備註
-          <input className="mt-1 w-full rounded-lg border px-3 py-2" value={note} onChange={(e) => setNote(e.target.value)} />
-        </label>
+    <section className="app-card">
+      <h2 className="app-title">新增實際還款</h2>
+      <p className="app-subtitle">目前剩餘本金 {principalRemaining.toLocaleString("zh-TW")}。依實際天數計息，先抵利息，剩餘金額回本金。</p>
+      <div className="app-grid">
+        <label className="app-label">還款日期<input className="app-input" type="date" value={paymentDate} onChange={(e) => setPaymentDate(e.target.value)} /></label>
+        <label className="app-label">還款金額<input className="app-input" type="number" value={amount} onChange={(e) => setAmount(e.target.value)} /></label>
+        <label className="app-label">備註<input className="app-input" value={note} onChange={(e) => setNote(e.target.value)} /></label>
       </div>
-
-      <div className="mt-3 grid gap-3 sm:grid-cols-4">
-        <PreviewCard label="實際天數" value={`${daysElapsed} 天`} />
-        <PreviewCard label="利息" value={preview.interestDue.toLocaleString("zh-TW")} />
-        <PreviewCard label="回本金" value={preview.principalPaid.toLocaleString("zh-TW")} />
-        <PreviewCard label="剩餘本金" value={preview.principalAfter.toLocaleString("zh-TW")} />
+      <div className="metric-grid mt-4">
+        <Metric label="實際天數" value={`${daysElapsed} 天`} />
+        <Metric label="利息" value={preview.interestDue.toLocaleString("zh-TW")} />
+        <Metric label="回本金" value={preview.principalPaid.toLocaleString("zh-TW")} />
+        <Metric label="剩餘本金" value={preview.principalAfter.toLocaleString("zh-TW")} green />
       </div>
-
-      <div className="mt-3 flex flex-wrap items-center gap-2">
-        <button className="rounded-lg bg-blue-700 px-4 py-2 text-white" type="button" onClick={save}>儲存還款</button>
-        <button className="rounded-lg border px-4 py-2" type="button" onClick={fillSettlement}>帶入今日結清金額 {preview.settlementAmount.toLocaleString("zh-TW")}</button>
-        {message ? <span className="text-sm text-slate-600">{message}</span> : null}
+      <div className="app-grid mt-4">
+        <button className="app-button primary full" type="button" onClick={save}>儲存還款</button>
+        <button className="app-button soft full" type="button" onClick={fillSettlement}>帶入今日結清金額 {preview.settlementAmount.toLocaleString("zh-TW")}</button>
+        {message ? <p className="app-subtitle">{message}</p> : null}
       </div>
-    </div>
+    </section>
   );
 }
 
-function PreviewCard({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-xl border bg-white p-3">
-      <div className="text-xs text-slate-500">{label}</div>
-      <div className="mt-1 font-bold">{value}</div>
-    </div>
-  );
+function Metric({ label, value, green = false }: { label: string; value: string; green?: boolean }) {
+  return <div className="metric-card"><div className="metric-label">{label}</div><div className={`metric-value ${green ? "green" : ""}`}>{value}</div></div>;
 }

@@ -1,4 +1,5 @@
 export type LoanType = "normal" | "vehicle" | "gold";
+export type InstallmentUnit = "period" | "month";
 export type ExtraDeductionInput = { name: string; amount: number };
 export type LoanStatus = "created" | "active" | "partial_payment" | "settlement" | "closed";
 export type CalculatorSettingsInput = {
@@ -14,6 +15,7 @@ export type CalculateInput = {
   loanType: LoanType;
   loanAmount: number;
   periodCount: number;
+  installmentUnit?: InstallmentUnit;
   startDate: string;
   preDeductPeriods: number;
   goldDeduction?: number;
@@ -33,6 +35,8 @@ export type PlanItem = {
 export type CalculationResult = {
   loanAmount: number;
   periodCount: number;
+  installmentUnit: InstallmentUnit;
+  installmentDays: number;
   preDeductPeriods: number;
   interestAmount: number;
   vehicleFee: number;
@@ -66,6 +70,10 @@ export const defaultSettings = {
 
 export const money = (value: number) => (Number.isFinite(value) ? Math.round(value) : 0);
 export const roundToHundred = (value: number) => (Number.isFinite(value) ? Math.round(value / 100) * 100 : 0);
+
+export function getInstallmentDays(unit: InstallmentUnit | undefined, settings: Pick<CalculatorSettingsInput, "periodDays">) {
+  return unit === "month" ? 30 : settings.periodDays;
+}
 
 export function toDateOnly(value: Date | string) {
   if (value instanceof Date) return value.toISOString().slice(0, 10);
@@ -105,9 +113,10 @@ export function calcPreDeductInterest(principal: number, periods: number, settin
   return money(calcPeriodInterest(principal, settings) * periods);
 }
 
-function buildAmortization(principal: number, periodCount: number, startDate: string, settings: CalculatorSettingsInput) {
+function buildAmortization(principal: number, periodCount: number, startDate: string, settings: CalculatorSettingsInput, installmentUnit: InstallmentUnit) {
   const safePeriodCount = Math.max(1, Math.floor(periodCount));
-  const rate = (settings.interestPer10000For30Days / 10000) * (settings.periodDays / 30);
+  const installmentDays = getInstallmentDays(installmentUnit, settings);
+  const rate = (settings.interestPer10000For30Days / 10000) * (installmentDays / 30);
   const exactPayment = rate === 0 ? principal / safePeriodCount : (principal * rate * Math.pow(1 + rate, safePeriodCount)) / (Math.pow(1 + rate, safePeriodCount) - 1);
   const regularPayment = Math.max(roundToHundred(exactPayment), 100);
   const items: PlanItem[] = [];
@@ -126,7 +135,7 @@ function buildAmortization(principal: number, periodCount: number, startDate: st
 
     items.push({
       periodIndex: index,
-      dueDate: addDays(startDate, settings.periodDays * index),
+      dueDate: addDays(startDate, installmentDays * index),
       principalBefore,
       interestDue: interest,
       paymentAmount,
@@ -140,10 +149,11 @@ function buildAmortization(principal: number, periodCount: number, startDate: st
     remaining = principalAfter;
   }
 
-  return { payment: regularPayment, totalInterest: money(totalInterest), totalPayment: money(totalPayment), items };
+  return { payment: regularPayment, totalInterest: money(totalInterest), totalPayment: money(totalPayment), items, installmentDays };
 }
 
 export function calculateDebt(input: CalculateInput, settings: CalculatorSettingsInput = defaultSettings) {
+  const installmentUnit: InstallmentUnit = input.installmentUnit === "month" ? "month" : "period";
   const loanAmount = input.loanType === "gold" ? settings.goldFixedLoanAmount : money(input.loanAmount);
   const preDeductPeriods = input.preDeductPeriods > 0 ? input.preDeductPeriods : getAutoPreDeductPeriods(input.startDate);
   const interestAmount = calcPreDeductInterest(loanAmount, preDeductPeriods, settings);
@@ -153,11 +163,13 @@ export function calculateDebt(input: CalculateInput, settings: CalculatorSetting
   const totalDeductions = money(interestAmount + vehicleFee + goldDeduction + otherDeductionsTotal);
   const actualReceivedAmount = money(loanAmount - totalDeductions);
   const periodCount = Math.max(1, Math.floor(input.periodCount));
-  const plan = buildAmortization(loanAmount, periodCount, input.startDate, settings);
+  const plan = buildAmortization(loanAmount, periodCount, input.startDate, settings, installmentUnit);
 
   return {
     loanAmount,
     periodCount,
+    installmentUnit,
+    installmentDays: plan.installmentDays,
     preDeductPeriods,
     interestAmount,
     vehicleFee,

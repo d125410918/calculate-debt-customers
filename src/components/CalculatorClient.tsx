@@ -203,7 +203,7 @@ export default function CalculatorClient({ mode, slug, ownerName, settings = def
           <div className="result-main-value">{format(result.actualReceivedAmount)} <small>元</small></div>
           <ResultLine label="借款金額" value={`${format(result.loanAmount)} 元`} />
           <ResultLine label={`前扣利息（${result.preDeductPeriods}期）`} value={`- ${format(result.interestAmount)} 元`} />
-          <ResultLine label="分期方式" value={result.installmentUnit === "month" ? `${result.periodCount} 月，每 30 天一期` : `${result.periodCount} 期，每 ${result.installmentDays} 天一期`} />
+          <ResultLine label="分期方式" value={result.installmentUnit === "month" ? `${result.requestedPeriodCount} 月，共 ${result.periodCount} 期，每 ${result.installmentDays} 天一期` : `${result.periodCount} 期，每 ${result.installmentDays} 天一期`} />
           <ResultLine label="其他扣款" value={`- ${format(result.otherDeductionsTotal + result.vehicleFee + result.goldDeduction)} 元`} />
           <ResultLine label="總扣款" value={`- ${format(result.totalDeductions)} 元`} negative />
           <ResultLine label="客人實拿" value={`${format(result.actualReceivedAmount)} 元`} positive />

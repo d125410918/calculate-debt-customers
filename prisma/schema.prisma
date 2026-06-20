@@ -103,6 +103,9 @@ model Loan {
   periodDays                 Int      @default(15)
   periodCount                Int
   startDate                  DateTime
+  lastInterestCalcDate       DateTime @default(now())
+  nextDueDate                DateTime @default(now())
+  currentAccruedInterest     Int      @default(0)
   status                     String   @default("active")
   note                       String?
   createdAt                  DateTime @default(now())
@@ -115,6 +118,7 @@ model Loan {
 
   @@index([ownerId])
   @@index([customerId])
+  @@index([status])
 }
 
 model LoanPlan {

@@ -102,6 +102,8 @@ model Loan {
   interestPer10000For30Days  Int      @default(750)
   periodDays                 Int      @default(15)
   periodCount                Int
+  installmentUnit            String   @default("period")
+  installmentDays            Int      @default(15)
   startDate                  DateTime
   lastInterestCalcDate       DateTime @default(now())
   nextDueDate                DateTime @default(now())

@@ -24,7 +24,7 @@ const presetPeriods: Array<{ label: string; value: PeriodOption }> = [
 
 export default function CalculatorClient({ mode, slug, ownerName, settings = defaultSettings }: Props) {
   const [loanType, setLoanType] = useState<LoanType>("normal");
-  const [loanAmount, setLoanAmount] = useState("10000");
+  const [loanAmount, setLoanAmount] = useState("100000");
   const [periodOption, setPeriodOption] = useState<PeriodOption>("6");
   const [customPeriodCount, setCustomPeriodCount] = useState("6");
   const periodCount = periodOption === "custom" ? customPeriodCount : periodOption;
@@ -54,7 +54,7 @@ export default function CalculatorClient({ mode, slug, ownerName, settings = def
   }
 
   function addDeduction() {
-    setExtraDeductions((items) => [...items, { name: "其他扣款", amount: 0 }]);
+    setExtraDeductions((items) => [...items, { name: "", amount: 0 }]);
   }
 
   function updateDeduction(index: number, patch: Partial<ExtraDeductionInput>) {
@@ -63,6 +63,19 @@ export default function CalculatorClient({ mode, slug, ownerName, settings = def
 
   function removeDeduction(index: number) {
     setExtraDeductions((items) => items.filter((_, i) => i !== index));
+  }
+
+  function resetForm() {
+    setLoanType("normal");
+    setLoanAmount("100000");
+    setPeriodOption("6");
+    setCustomPeriodCount("6");
+    setStartDate(today);
+    setPreDeductPeriods(String(getAutoPreDeductPeriods(today)));
+    setGoldDeduction("0");
+    setExtraDeductions([]);
+    setSaveMessage("");
+    setSaveState("idle");
   }
 
   async function saveCustomer() {
@@ -95,87 +108,99 @@ export default function CalculatorClient({ mode, slug, ownerName, settings = def
 
   return (
     <div className="app-shell">
-      <section className="card p-6">
-        <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <h1 className="font-bold">{mode === "original" ? "實拿金額計算器" : `${ownerName ?? slug} 實拿金額計算器`}</h1>
-            <p className="sub mt-1">每萬元 750 元為 30 天利息，系統以一期 {settings.periodDays} 天自動換算。</p>
-          </div>
-          {mode === "user" && slug ? <a className="text-sm text-blue-700" href={`/u/${slug}/customers`}>客戶列表</a> : null}
+      <section className="mobile-hero">
+        <div className="mobile-hero-icon">算</div>
+        <div>
+          <div className="mobile-hero-title">自動計算出金額度</div>
+          <div className="mobile-hero-subtitle">貸款可實拿金額試算工具</div>
+        </div>
+      </section>
+
+      {mode === "user" && slug ? <a className="notice-card block no-underline" href={`/u/${slug}/customers`}>客戶列表：查看已建立案件與還款紀錄</a> : null}
+
+      <section className="notice-card">先選擇典當品，再選計算方式。黃金固定 50,000 元，只計算實拿金額。</section>
+
+      <section className="card step-card">
+        <h2 className="step-title">1 選擇典當品</h2>
+        <div className="segment-stack">
+          <button className={`segment-button ${loanType === "normal" ? "is-active" : ""}`} type="button" onClick={() => setLoanType("normal")}>一般</button>
+          <button className={`segment-button ${loanType === "vehicle" ? "is-active" : ""}`} type="button" onClick={() => setLoanType("vehicle")}>汽機車</button>
+          <button className={`segment-button ${loanType === "gold" ? "is-active" : ""}`} type="button" onClick={() => setLoanType("gold")}>黃金</button>
+        </div>
+        <div className="info-pill">
+          <span>前扣利息（{preDeductPeriods || 0}期）</span>
+          <span>每萬元 750 元，利率 7.5%</span>
+        </div>
+      </section>
+
+      <section className="card step-card">
+        <h2 className="step-title">2 計算模式</h2>
+        <div className="segment-stack">
+          <button className="segment-button is-active" type="button">借款金額 → 實拿</button>
+          <button className="segment-button" type="button">目標實拿 → 建議額度</button>
         </div>
 
-        <div className="mt-5 grid gap-4 sm:grid-cols-2">
-          <label className="block text-sm font-bold">放款日期
-            <input className="mt-1" type="date" value={startDate} onChange={(e) => changeStartDate(e.target.value)} />
+        <div className="mt-6 space-y-4">
+          <label className="block text-xl font-black">借款金額
+            <input className="mt-2" type="number" value={loanAmount} disabled={loanType === "gold"} onChange={(e) => setLoanAmount(e.target.value)} />
           </label>
 
-          <label className="block text-sm font-bold">品項類型
-            <select className="mt-1" value={loanType} onChange={(e) => setLoanType(e.target.value as LoanType)}>
-              <option value="normal">一般</option>
-              <option value="vehicle">汽機車</option>
-              <option value="gold">黃金</option>
-            </select>
+          <label className="block text-xl font-black">放款日期
+            <input className="mt-2" type="date" value={startDate} onChange={(e) => changeStartDate(e.target.value)} />
           </label>
 
-          <label className="block text-sm font-bold">放款金額
-            <input className="mt-1" type="number" value={loanAmount} disabled={loanType === "gold"} onChange={(e) => setLoanAmount(e.target.value)} />
+          <label className="block text-xl font-black">前扣期數
+            <input className="mt-2" type="number" min="0" value={preDeductPeriods} onChange={(e) => setPreDeductPeriods(e.target.value)} />
           </label>
 
-          <label className="block text-sm font-bold">前扣期數
-            <input className="mt-1" type="number" min="0" value={preDeductPeriods} onChange={(e) => setPreDeductPeriods(e.target.value)} />
-            <span className="mt-1 block text-xs text-slate-500">29日到月底、1日到5日自動三期；6日到28日自動兩期，可手動覆蓋。</span>
-          </label>
-
-          <div className="block text-sm font-bold sm:col-span-2">
-            <div>分幾期還完</div>
-            <div className="mt-1 grid grid-cols-5 gap-2">
+          <div className="block text-xl font-black">
+            <div>期數</div>
+            <div className="mt-2 grid grid-cols-5 gap-2">
               {presetPeriods.map((option) => (
-                <button className={`rounded-lg border ${periodOption === option.value ? "border-blue-700 bg-blue-700 text-white" : "bg-white"}`} key={option.value} type="button" onClick={() => setPeriodOption(option.value)}>{option.label}</button>
+                <button className={`segment-button min-h-0 py-3 text-base ${periodOption === option.value ? "is-active" : ""}`} key={option.value} type="button" onClick={() => setPeriodOption(option.value)}>{option.label}</button>
               ))}
             </div>
-            {periodOption === "custom" ? <input className="mt-2" type="number" min="1" value={customPeriodCount} onChange={(e) => setCustomPeriodCount(e.target.value)} placeholder="輸入其他期數" /> : null}
+            {periodOption === "custom" ? <input className="mt-3" type="number" min="1" value={customPeriodCount} onChange={(e) => setCustomPeriodCount(e.target.value)} placeholder="輸入其他期數" /> : null}
           </div>
 
           {loanType === "gold" ? (
-            <label className="block text-sm font-bold sm:col-span-2">黃金扣款
-              <input className="mt-1" type="number" value={goldDeduction} onChange={(e) => setGoldDeduction(e.target.value)} />
+            <label className="block text-xl font-black">黃金扣款
+              <input className="mt-2" type="number" value={goldDeduction} onChange={(e) => setGoldDeduction(e.target.value)} />
             </label>
           ) : null}
         </div>
+      </section>
 
-        <section className="mt-6">
-          <div className="flex items-center justify-between">
-            <h2 className="font-bold">其他扣款</h2>
-            <button type="button" onClick={addDeduction}>新增</button>
-          </div>
-          <div className="mt-3 space-y-2">
-            {extraDeductions.map((item, index) => (
-              <div className="grid gap-2 sm:grid-cols-[1fr_160px_80px]" key={index}>
-                <input value={item.name} onChange={(e) => updateDeduction(index, { name: e.target.value })} />
-                <input type="number" value={item.amount} onChange={(e) => updateDeduction(index, { amount: Number(e.target.value) })} />
-                <button type="button" onClick={() => removeDeduction(index)}>刪除</button>
-              </div>
-            ))}
-          </div>
-        </section>
+      <section className="card step-card">
+        <h2 className="step-title">3 其他扣款</h2>
+        <div className="space-y-4">
+          {extraDeductions.map((item, index) => (
+            <div className="space-y-3" key={index}>
+              <input value={item.name} onChange={(e) => updateDeduction(index, { name: e.target.value })} placeholder="項目" />
+              <input type="number" value={item.amount || ""} onChange={(e) => updateDeduction(index, { amount: Number(e.target.value) })} placeholder="金額" />
+              <button className="danger-button" type="button" onClick={() => removeDeduction(index)}>刪除</button>
+            </div>
+          ))}
+          <button className="soft-add-button" type="button" onClick={addDeduction}>＋ 新增其他扣款</button>
+        </div>
       </section>
 
       {result ? (
-        <section className="card p-6">
-          <h2 className="font-bold">試算結果</h2>
-          <div className="mt-4 space-y-0">
-            <ResultLine label="放款金額" value={format(result.loanAmount)} />
-            <ResultLine label="前扣利息" value={format(result.interestAmount)} />
-            <ResultLine label="總扣款" value={format(result.totalDeductions)} />
-            <ResultLine label="每期應還" value={format(result.fixedPaymentAmount)} />
-            <ResultLine label="完整期數總還款" value={format(result.totalPayment)} />
-            <ResultLine label="實拿金額" value={format(result.actualReceivedAmount)} total />
-          </div>
+        <section className="card mobile-result-card">
+          <div className="result-top-line"><button className="clear-button" type="button" onClick={resetForm}>清除重算</button></div>
+          <h2 className="font-black">試算結果</h2>
+          <div className="mt-7 result-caption">客人可實拿</div>
+          <div className="result-main-value">{format(result.actualReceivedAmount)} <small>元</small></div>
+          <ResultLine label="借款金額" value={`${format(result.loanAmount)} 元`} />
+          <ResultLine label={`前扣利息（${result.preDeductPeriods}期）`} value={`- ${format(result.interestAmount)} 元`} />
+          <ResultLine label="其他扣款" value={`- ${format(result.otherDeductionsTotal + result.vehicleFee + result.goldDeduction)} 元`} />
+          <ResultLine label="總扣款" value={`- ${format(result.totalDeductions)} 元`} negative />
+          <ResultLine label="客人實拿" value={`${format(result.actualReceivedAmount)} 元`} positive />
 
           {mode === "user" ? (
-            <div className="mt-5 rounded-xl border bg-slate-50 p-4">
-              <label className="block text-sm font-bold">客戶姓名
-                <input className="mt-1" value={customerName} onChange={(e) => setCustomerName(e.target.value)} placeholder="先輸入姓名即可建立" />
+            <div className="mt-6 rounded-3xl border bg-slate-50 p-4">
+              <label className="block text-xl font-black">客戶姓名
+                <input className="mt-2" value={customerName} onChange={(e) => setCustomerName(e.target.value)} placeholder="先輸入姓名即可建立" />
               </label>
               <button className="primary-action" type="button" disabled={saveState === "saving"} onClick={saveCustomer}>{saveState === "saving" ? "建立中" : "加入客戶資料"}</button>
               {saveMessage ? <p className="mt-2 text-sm text-red-700">{saveMessage}</p> : null}
@@ -185,9 +210,9 @@ export default function CalculatorClient({ mode, slug, ownerName, settings = def
       ) : null}
 
       {result ? (
-        <section className="card app-full p-6">
-          <h2 className="font-bold">原始分期試算表</h2>
-          <div className="table-wrap mt-5">
+        <section className="card app-full step-card">
+          <h2 className="step-title">原始分期試算表</h2>
+          <div className="table-wrap">
             <table className="w-full min-w-[760px] border-collapse text-sm">
               <thead>
                 <tr className="text-left">
@@ -221,11 +246,11 @@ export default function CalculatorClient({ mode, slug, ownerName, settings = def
   );
 }
 
-function ResultLine({ label, value, total = false }: { label: string; value: string; total?: boolean }) {
+function ResultLine({ label, value, negative = false, positive = false }: { label: string; value: string; negative?: boolean; positive?: boolean }) {
   return (
-    <div className={`flex justify-between gap-4 border-b border-slate-100 py-2 ${total ? "mt-2 border-b-0 text-2xl font-extrabold" : ""}`}>
-      <span className="text-slate-600">{label}</span>
-      <span className="font-bold">{value}</span>
+    <div className={`result-line ${negative ? "is-negative" : ""} ${positive ? "is-positive" : ""}`}>
+      <span>{label}</span>
+      <strong>{value}</strong>
     </div>
   );
 }

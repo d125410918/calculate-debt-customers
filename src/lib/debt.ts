@@ -83,50 +83,50 @@ export function calcPreDeductInterest(principal: number, periods: number, settin
   return money(calcPeriodInterest(principal, settings) * periods);
 }
 
-function simulatePlan(principal: number, periodCount: number, payment: number, startDate: string, settings: CalculatorSettingsInput): PlanItem[] {
+function createEqualInstallmentPlan(principal: number, periodCount: number, startDate: string, settings: CalculatorSettingsInput): { payment: number; totalInterest: number; totalPayment: number; items: PlanItem[] } {
+  if (periodCount <= 0) throw new Error("期數必須大於 0");
+  if (principal <= 0) throw new Error("本金必須大於 0");
+
+  const periodInterest = calcPeriodInterest(principal, settings);
+  const totalInterest = money(periodInterest * periodCount);
+  const totalPayment = money(principal + totalInterest);
+  const fixedPayment = Math.ceil(totalPayment / periodCount);
   const items: PlanItem[] = [];
-  let remaining = principal;
+  let principalRemaining = principal;
+  let interestRemaining = totalInterest;
+  let paymentRemaining = totalPayment;
 
   for (let index = 1; index <= periodCount; index += 1) {
-    const before = remaining;
-    const interestDue = calcPeriodInterest(before, settings);
     const isLast = index === periodCount;
-    const amount = isLast ? interestDue + before : payment;
-    const interestPaid = Math.min(amount, interestDue);
-    const principalPaid = Math.min(Math.max(amount - interestPaid, 0), before);
-    remaining = Math.max(before - principalPaid, 0);
+    const principalBefore = principalRemaining;
+    const paymentAmount = isLast ? paymentRemaining : fixedPayment;
+    const interestDue = isLast ? interestRemaining : Math.min(periodInterest, interestRemaining);
+    const interestPaid = Math.min(paymentAmount, interestDue);
+    const principalPaid = isLast ? principalBefore : Math.min(Math.max(paymentAmount - interestPaid, 0), principalBefore);
+    const principalAfter = Math.max(principalBefore - principalPaid, 0);
 
     items.push({
       periodIndex: index,
       dueDate: addDays(startDate, settings.periodDays * index),
-      principalBefore: before,
+      principalBefore,
       interestDue,
-      paymentAmount: amount,
+      paymentAmount,
       interestPaid,
       principalPaid,
-      principalAfter: remaining
+      principalAfter
     });
+
+    principalRemaining = principalAfter;
+    interestRemaining = Math.max(interestRemaining - interestPaid, 0);
+    paymentRemaining = Math.max(paymentRemaining - paymentAmount, 0);
   }
 
-  return items;
+  return { payment: fixedPayment, totalInterest, totalPayment, items };
 }
 
 export function findFixedPayment(principal: number, periodCount: number, startDate: string, settings: CalculatorSettingsInput): { payment: number; items: PlanItem[] } {
-  if (periodCount <= 0) throw new Error("期數必須大於 0");
-  if (principal <= 0) throw new Error("本金必須大於 0");
-
-  let low = 1;
-  let high = principal + calcPeriodInterest(principal, settings) * periodCount;
-
-  while (low < high) {
-    const mid = Math.floor((low + high) / 2);
-    const items = simulatePlan(principal, periodCount, mid, startDate, settings);
-    const last = items[items.length - 1];
-    if (last.principalAfter <= 0) high = mid;
-    else low = mid + 1;
-  }
-
-  return { payment: low, items: simulatePlan(principal, periodCount, low, startDate, settings) };
+  const plan = createEqualInstallmentPlan(principal, periodCount, startDate, settings);
+  return { payment: plan.payment, items: plan.items };
 }
 
 export function calculateDebt(input: CalculateInput, settings: CalculatorSettingsInput = defaultSettings): CalculationResult {
@@ -139,9 +139,7 @@ export function calculateDebt(input: CalculateInput, settings: CalculatorSetting
   const otherDeductionsTotal = input.extraDeductions.reduce((sum, item) => sum + money(item.amount), 0);
   const totalDeductions = money(interestAmount + vehicleFee + goldDeduction + otherDeductionsTotal);
   const actualReceivedAmount = money(loanAmount - totalDeductions);
-  const plan = findFixedPayment(loanAmount, periodCount, input.startDate, settings);
-  const totalInterest = plan.items.reduce((sum, item) => sum + item.interestDue, 0);
-  const totalPayment = plan.items.reduce((sum, item) => sum + item.paymentAmount, 0);
+  const plan = createEqualInstallmentPlan(loanAmount, periodCount, input.startDate, settings);
 
   return {
     loanAmount,
@@ -154,8 +152,8 @@ export function calculateDebt(input: CalculateInput, settings: CalculatorSetting
     totalDeductions,
     actualReceivedAmount,
     fixedPaymentAmount: plan.payment,
-    totalInterest,
-    totalPayment,
+    totalInterest: plan.totalInterest,
+    totalPayment: plan.totalPayment,
     planItems: plan.items
   };
 }

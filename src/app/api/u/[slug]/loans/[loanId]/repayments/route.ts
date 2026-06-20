@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { defaultSettings, previewRepayment } from "@/lib/debt";
+import { defaultSettings, previewRepayment, type CalculatorSettingsInput } from "@/lib/debt";
 import { prisma } from "@/lib/prisma";
 
 export async function POST(request: Request, { params }: { params: { slug: string; loanId: string } }) {
@@ -15,7 +15,18 @@ export async function POST(request: Request, { params }: { params: { slug: strin
     if (!loan) return NextResponse.json({ error: "找不到案件" }, { status: 404 });
     if (loan.status === "closed") return NextResponse.json({ error: "此案件已結清" }, { status: 400 });
 
-    const settings = owner.settings ?? defaultSettings;
+    const settings: CalculatorSettingsInput = owner.settings
+      ? {
+          interestPer10000For30Days: owner.settings.interestPer10000For30Days,
+          periodDays: owner.settings.periodDays,
+          normalPreDeductPeriods: owner.settings.normalPreDeductPeriods,
+          specialPreDeductPeriods: owner.settings.specialPreDeductPeriods,
+          vehicleFee: owner.settings.vehicleFee,
+          goldFixedLoanAmount: owner.settings.goldFixedLoanAmount,
+          roundingMode: "round"
+        }
+      : defaultSettings;
+
     const preview = previewRepayment(loan.principalRemaining, amount, settings);
 
     const repayment = await prisma.$transaction(async (tx) => {

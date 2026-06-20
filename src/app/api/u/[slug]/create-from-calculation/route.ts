@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { calculateDebt, defaultSettings, type CalculateInput } from "@/lib/debt";
+import { calculateDebt, defaultSettings, type CalculateInput, type CalculatorSettingsInput } from "@/lib/debt";
 import { prisma } from "@/lib/prisma";
 
 export async function POST(request: Request, { params }: { params: { slug: string } }) {
@@ -17,7 +17,18 @@ export async function POST(request: Request, { params }: { params: { slug: strin
       return NextResponse.json({ error: "找不到使用者頁面。" }, { status: 404 });
     }
 
-    const settings = owner.settings ?? defaultSettings;
+    const settings: CalculatorSettingsInput = owner.settings
+      ? {
+          interestPer10000For30Days: owner.settings.interestPer10000For30Days,
+          periodDays: owner.settings.periodDays,
+          normalPreDeductPeriods: owner.settings.normalPreDeductPeriods,
+          specialPreDeductPeriods: owner.settings.specialPreDeductPeriods,
+          vehicleFee: owner.settings.vehicleFee,
+          goldFixedLoanAmount: owner.settings.goldFixedLoanAmount,
+          roundingMode: "round"
+        }
+      : defaultSettings;
+
     const result = calculateDebt({ ...input, customerName }, settings);
 
     const saved = await prisma.$transaction(async (tx) => {

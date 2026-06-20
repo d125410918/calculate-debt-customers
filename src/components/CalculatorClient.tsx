@@ -11,13 +11,23 @@ type Props = {
 };
 
 type SaveState = "idle" | "saving" | "saved" | "error";
+type PeriodOption = "6" | "12" | "24" | "36" | "custom";
 
 const today = new Date().toISOString().slice(0, 10);
+const presetPeriods: Array<{ label: string; value: PeriodOption }> = [
+  { label: "6期", value: "6" },
+  { label: "12期", value: "12" },
+  { label: "24期", value: "24" },
+  { label: "36期", value: "36" },
+  { label: "+", value: "custom" }
+];
 
 export default function CalculatorClient({ mode, slug, ownerName, settings = defaultSettings }: Props) {
   const [loanType, setLoanType] = useState<LoanType>("normal");
   const [loanAmount, setLoanAmount] = useState("10000");
-  const [periodCount, setPeriodCount] = useState("6");
+  const [periodOption, setPeriodOption] = useState<PeriodOption>("6");
+  const [customPeriodCount, setCustomPeriodCount] = useState("6");
+  const periodCount = periodOption === "custom" ? customPeriodCount : periodOption;
   const [startDate, setStartDate] = useState(today);
   const [preDeductPeriods, setPreDeductPeriods] = useState(String(settings.normalPreDeductPeriods));
   const [goldDeduction, setGoldDeduction] = useState("0");
@@ -28,18 +38,7 @@ export default function CalculatorClient({ mode, slug, ownerName, settings = def
 
   const result = useMemo<CalculationResult | null>(() => {
     try {
-      return calculateDebt(
-        {
-          loanType,
-          loanAmount: Number(loanAmount),
-          periodCount: Number(periodCount),
-          startDate,
-          preDeductPeriods: Number(preDeductPeriods),
-          goldDeduction: Number(goldDeduction),
-          extraDeductions
-        },
-        settings
-      );
+      return calculateDebt({ loanType, loanAmount: Number(loanAmount), periodCount: Number(periodCount), startDate, preDeductPeriods: Number(preDeductPeriods), goldDeduction: Number(goldDeduction), extraDeductions }, settings);
     } catch {
       return null;
     }
@@ -75,18 +74,7 @@ export default function CalculatorClient({ mode, slug, ownerName, settings = def
     const response = await fetch(`/api/u/${slug}/create-from-calculation`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        customerName,
-        input: {
-          loanType,
-          loanAmount: Number(loanAmount),
-          periodCount: Number(periodCount),
-          startDate,
-          preDeductPeriods: Number(preDeductPeriods),
-          goldDeduction: Number(goldDeduction),
-          extraDeductions
-        }
-      })
+      body: JSON.stringify({ customerName, input: { loanType, loanAmount: Number(loanAmount), periodCount: Number(periodCount), startDate, preDeductPeriods: Number(preDeductPeriods), goldDeduction: Number(goldDeduction), extraDeductions } })
     });
 
     const data = await response.json();
@@ -106,7 +94,7 @@ export default function CalculatorClient({ mode, slug, ownerName, settings = def
         <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <h1 className="text-2xl font-bold">{mode === "original" ? "原始試算頁" : `${ownerName ?? slug} 還款試算`}</h1>
-            <p className="mt-1 text-sm text-slate-600">每萬元 750 元為 30 天利息，一期 {settings.periodDays} 天，金額四捨五入。</p>
+            <p className="mt-1 text-sm text-slate-600">每萬元 750 元為 30 天利息，一期 {settings.periodDays} 天。分期表會把完整期數利息平均放入每期總還款。</p>
           </div>
           {mode === "user" && slug ? <a className="text-sm text-blue-700" href={`/u/${slug}/customers`}>客戶列表</a> : null}
         </div>
@@ -124,9 +112,15 @@ export default function CalculatorClient({ mode, slug, ownerName, settings = def
             <input className="mt-1 w-full rounded-lg border px-3 py-2" type="number" value={loanAmount} disabled={loanType === "gold"} onChange={(e) => setLoanAmount(e.target.value)} />
           </label>
 
-          <label className="block text-sm font-medium">分幾期還完
-            <input className="mt-1 w-full rounded-lg border px-3 py-2" type="number" min="1" value={periodCount} onChange={(e) => setPeriodCount(e.target.value)} />
-          </label>
+          <div className="block text-sm font-medium">
+            <div>分幾期還完</div>
+            <div className="mt-1 grid grid-cols-5 gap-2">
+              {presetPeriods.map((option) => (
+                <button className={`rounded-lg border px-3 py-2 ${periodOption === option.value ? "border-blue-700 bg-blue-700 text-white" : "bg-white"}`} key={option.value} type="button" onClick={() => setPeriodOption(option.value)}>{option.label}</button>
+              ))}
+            </div>
+            {periodOption === "custom" ? <input className="mt-2 w-full rounded-lg border px-3 py-2" type="number" min="1" value={customPeriodCount} onChange={(e) => setCustomPeriodCount(e.target.value)} placeholder="輸入其他期數" /> : null}
+          </div>
 
           <label className="block text-sm font-medium">起算日
             <input className="mt-1 w-full rounded-lg border px-3 py-2" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
@@ -166,8 +160,8 @@ export default function CalculatorClient({ mode, slug, ownerName, settings = def
             <ResultCard label="前扣利息" value={format(result.interestAmount)} />
             <ResultCard label="總扣款" value={format(result.totalDeductions)} />
             <ResultCard label="實拿金額" value={format(result.actualReceivedAmount)} />
-            <ResultCard label="建議每期還款" value={format(result.fixedPaymentAmount)} />
-            <ResultCard label="總還款" value={format(result.totalPayment)} />
+            <ResultCard label="每期應還" value={format(result.fixedPaymentAmount)} />
+            <ResultCard label="完整期數總還款" value={format(result.totalPayment)} />
           </div>
 
           {mode === "user" ? (
@@ -175,9 +169,7 @@ export default function CalculatorClient({ mode, slug, ownerName, settings = def
               <label className="block text-sm font-medium">客戶姓名
                 <input className="mt-1 w-full rounded-lg border px-3 py-2" value={customerName} onChange={(e) => setCustomerName(e.target.value)} placeholder="先輸入姓名即可建立" />
               </label>
-              <button className="mt-3 rounded-lg bg-blue-700 px-4 py-2 text-white disabled:opacity-60" type="button" disabled={saveState === "saving"} onClick={saveCustomer}>
-                {saveState === "saving" ? "建立中" : "加入客戶資料"}
-              </button>
+              <button className="mt-3 rounded-lg bg-blue-700 px-4 py-2 text-white disabled:opacity-60" type="button" disabled={saveState === "saving"} onClick={saveCustomer}>{saveState === "saving" ? "建立中" : "加入客戶資料"}</button>
               {saveMessage ? <p className="mt-2 text-sm text-red-700">{saveMessage}</p> : null}
             </div>
           ) : null}
@@ -189,10 +181,10 @@ export default function CalculatorClient({ mode, slug, ownerName, settings = def
                   <th className="border px-3 py-2">期數</th>
                   <th className="border px-3 py-2">到期日</th>
                   <th className="border px-3 py-2">期初本金</th>
-                  <th className="border px-3 py-2">利息</th>
-                  <th className="border px-3 py-2">還款</th>
+                  <th className="border px-3 py-2">均攤利息</th>
+                  <th className="border px-3 py-2">總還款</th>
                   <th className="border px-3 py-2">回本</th>
-                  <th className="border px-3 py-2">期末本金</th>
+                  <th className="border px-3 py-2">剩餘本金</th>
                 </tr>
               </thead>
               <tbody>

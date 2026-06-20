@@ -119,16 +119,14 @@ export function calcPreDeductInterest(principal: number, periods: number, settin
   return money(calcPeriodInterest(principal, settings) * periods);
 }
 
-function buildAmortization(principal: number, actualPeriodCount: number, startDate: string, settings: CalculatorSettingsInput, installmentUnit: InstallmentUnit) {
+function buildHalfMonthItems(principal: number, actualPeriodCount: number, startDate: string, settings: CalculatorSettingsInput) {
   const safePeriodCount = Math.max(1, Math.floor(actualPeriodCount));
-  const installmentDays = getInstallmentDays(installmentUnit, settings);
+  const installmentDays = settings.periodDays;
   const rate = (settings.interestPer10000For30Days / 10000) * (installmentDays / 30);
   const exactPayment = rate === 0 ? principal / safePeriodCount : (principal * rate * Math.pow(1 + rate, safePeriodCount)) / (Math.pow(1 + rate, safePeriodCount) - 1);
   const regularPayment = Math.max(roundToHundred(exactPayment), 100);
   const items: PlanItem[] = [];
   let remaining = money(principal);
-  let totalInterest = 0;
-  let totalPayment = 0;
 
   for (let index = 1; index <= safePeriodCount; index++) {
     const principalBefore = remaining;
@@ -150,12 +148,39 @@ function buildAmortization(principal: number, actualPeriodCount: number, startDa
       principalAfter
     });
 
-    totalInterest += interest;
-    totalPayment += paymentAmount;
     remaining = principalAfter;
   }
 
-  return { payment: regularPayment, totalInterest: money(totalInterest), totalPayment: money(totalPayment), items, installmentDays };
+  return { items, regularPayment, installmentDays };
+}
+
+function groupHalfMonthItemsByMonth(items: PlanItem[], startDate: string, settings: CalculatorSettingsInput) {
+  const grouped: PlanItem[] = [];
+  for (let i = 0; i < items.length; i += 2) {
+    const first = items[i];
+    const second = items[i + 1] ?? first;
+    grouped.push({
+      periodIndex: grouped.length + 1,
+      dueDate: addDays(startDate, settings.periodDays * (i + 2)),
+      principalBefore: first.principalBefore,
+      interestDue: money(first.interestDue + (second === first ? 0 : second.interestDue)),
+      paymentAmount: money(first.paymentAmount + (second === first ? 0 : second.paymentAmount)),
+      interestPaid: money(first.interestPaid + (second === first ? 0 : second.interestPaid)),
+      principalPaid: money(first.principalPaid + (second === first ? 0 : second.principalPaid)),
+      principalAfter: second.principalAfter
+    });
+  }
+  return grouped;
+}
+
+function buildAmortization(principal: number, requestedPeriodCount: number, startDate: string, settings: CalculatorSettingsInput, installmentUnit: InstallmentUnit) {
+  const actualPeriodCount = getActualPeriodCount(requestedPeriodCount, installmentUnit);
+  const halfMonth = buildHalfMonthItems(principal, actualPeriodCount, startDate, settings);
+  const items = installmentUnit === "month" ? groupHalfMonthItemsByMonth(halfMonth.items, startDate, settings) : halfMonth.items;
+  const totalInterest = items.reduce((sum, item) => sum + item.interestDue, 0);
+  const totalPayment = items.reduce((sum, item) => sum + item.paymentAmount, 0);
+  const payment = installmentUnit === "month" ? money((halfMonth.items[0]?.paymentAmount ?? 0) + (halfMonth.items[1]?.paymentAmount ?? 0)) : halfMonth.regularPayment;
+  return { payment, totalInterest: money(totalInterest), totalPayment: money(totalPayment), items, installmentDays: halfMonth.installmentDays };
 }
 
 export function calculateDebt(input: CalculateInput, settings: CalculatorSettingsInput = defaultSettings) {
@@ -170,7 +195,7 @@ export function calculateDebt(input: CalculateInput, settings: CalculatorSetting
   const otherDeductionsTotal = input.extraDeductions.reduce((sum, item) => sum + money(item.amount), 0);
   const totalDeductions = money(interestAmount + vehicleFee + goldDeduction + otherDeductionsTotal);
   const actualReceivedAmount = money(loanAmount - totalDeductions);
-  const plan = buildAmortization(loanAmount, periodCount, input.startDate, settings, installmentUnit);
+  const plan = buildAmortization(loanAmount, requestedPeriodCount, input.startDate, settings, installmentUnit);
 
   return {
     loanAmount,

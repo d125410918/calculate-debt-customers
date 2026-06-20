@@ -65,6 +65,7 @@ export const defaultSettings = {
 } as const;
 
 export const money = (value: number) => (Number.isFinite(value) ? Math.round(value) : 0);
+export const roundToHundred = (value: number) => (Number.isFinite(value) ? Math.round(value / 100) * 100 : 0);
 
 export function toDateOnly(value: Date | string) {
   if (value instanceof Date) return value.toISOString().slice(0, 10);
@@ -108,33 +109,38 @@ function buildAmortization(principal: number, periodCount: number, startDate: st
   const safePeriodCount = Math.max(1, Math.floor(periodCount));
   const rate = (settings.interestPer10000For30Days / 10000) * (settings.periodDays / 30);
   const exactPayment = rate === 0 ? principal / safePeriodCount : (principal * rate * Math.pow(1 + rate, safePeriodCount)) / (Math.pow(1 + rate, safePeriodCount) - 1);
-  const payment = money(exactPayment);
+  const regularPayment = Math.max(roundToHundred(exactPayment), 100);
   const items: PlanItem[] = [];
   let remaining = money(principal);
   let totalInterest = 0;
   let totalPayment = 0;
 
   for (let index = 1; index <= safePeriodCount; index++) {
-    const interest = money(remaining * rate);
-    const paymentAmount = index === safePeriodCount ? money(remaining + interest) : payment;
-    const principalPaid = Math.min(remaining, Math.max(paymentAmount - interest, 0));
-    const principalAfter = Math.max(remaining - principalPaid, 0);
+    const principalBefore = remaining;
+    const interest = money(principalBefore * rate);
+    const isFinal = index === safePeriodCount;
+    const minimumNonFinalPayment = money(interest + 1);
+    const paymentAmount = isFinal ? money(principalBefore + interest) : Math.max(regularPayment, minimumNonFinalPayment);
+    const principalPaid = isFinal ? principalBefore : Math.min(principalBefore, Math.max(paymentAmount - interest, 0));
+    const principalAfter = isFinal ? 0 : Math.max(principalBefore - principalPaid, 0);
+
     items.push({
       periodIndex: index,
       dueDate: addDays(startDate, settings.periodDays * index),
-      principalBefore: remaining,
+      principalBefore,
       interestDue: interest,
       paymentAmount,
       interestPaid: interest,
       principalPaid,
       principalAfter
     });
+
     totalInterest += interest;
     totalPayment += paymentAmount;
     remaining = principalAfter;
   }
 
-  return { payment, totalInterest: money(totalInterest), totalPayment: money(totalPayment), items };
+  return { payment: regularPayment, totalInterest: money(totalInterest), totalPayment: money(totalPayment), items };
 }
 
 export function calculateDebt(input: CalculateInput, settings: CalculatorSettingsInput = defaultSettings) {

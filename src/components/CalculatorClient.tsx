@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { calculateDebt, defaultSettings, getAutoPreDeductPeriods, type CalculatorSettingsInput, type CalculationResult, type ExtraDeductionInput, type LoanType } from "@/lib/debt";
+import { calculateDebt, defaultSettings, getAutoPreDeductPeriods, type CalculatorSettingsInput, type CalculationResult, type ExtraDeductionInput, type InstallmentUnit, type LoanType } from "@/lib/debt";
 
 type Props = {
   mode: "original" | "user";
@@ -25,6 +25,7 @@ const presetPeriods: Array<{ label: string; value: PeriodOption }> = [
 export default function CalculatorClient({ mode, slug, ownerName, settings = defaultSettings }: Props) {
   const [loanType, setLoanType] = useState<LoanType>("normal");
   const [loanAmount, setLoanAmount] = useState("100000");
+  const [installmentUnit, setInstallmentUnit] = useState<InstallmentUnit>("period");
   const [periodOption, setPeriodOption] = useState<PeriodOption>("6");
   const [customPeriodCount, setCustomPeriodCount] = useState("6");
   const periodCount = periodOption === "custom" ? customPeriodCount : periodOption;
@@ -38,11 +39,11 @@ export default function CalculatorClient({ mode, slug, ownerName, settings = def
 
   const result = useMemo<CalculationResult | null>(() => {
     try {
-      return calculateDebt({ loanType, loanAmount: Number(loanAmount), periodCount: Number(periodCount), startDate, preDeductPeriods: Number(preDeductPeriods), goldDeduction: Number(goldDeduction), extraDeductions }, settings);
+      return calculateDebt({ loanType, loanAmount: Number(loanAmount), periodCount: Number(periodCount), installmentUnit, startDate, preDeductPeriods: Number(preDeductPeriods), goldDeduction: Number(goldDeduction), extraDeductions }, settings);
     } catch {
       return null;
     }
-  }, [loanType, loanAmount, periodCount, startDate, preDeductPeriods, goldDeduction, extraDeductions, settings]);
+  }, [loanType, loanAmount, periodCount, installmentUnit, startDate, preDeductPeriods, goldDeduction, extraDeductions, settings]);
 
   function format(value: number) {
     return value.toLocaleString("zh-TW");
@@ -68,6 +69,7 @@ export default function CalculatorClient({ mode, slug, ownerName, settings = def
   function resetForm() {
     setLoanType("normal");
     setLoanAmount("100000");
+    setInstallmentUnit("period");
     setPeriodOption("6");
     setCustomPeriodCount("6");
     setStartDate(today);
@@ -92,7 +94,7 @@ export default function CalculatorClient({ mode, slug, ownerName, settings = def
     const response = await fetch(`/api/u/${slug}/create-from-calculation`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ customerName, input: { loanType, loanAmount: Number(loanAmount), periodCount: Number(periodCount), startDate, preDeductPeriods: Number(preDeductPeriods), goldDeduction: Number(goldDeduction), extraDeductions } })
+      body: JSON.stringify({ customerName, input: { loanType, loanAmount: Number(loanAmount), periodCount: Number(periodCount), installmentUnit, startDate, preDeductPeriods: Number(preDeductPeriods), goldDeduction: Number(goldDeduction), extraDeductions } })
     });
 
     const data = await response.json();
@@ -154,13 +156,21 @@ export default function CalculatorClient({ mode, slug, ownerName, settings = def
           </label>
 
           <div className="block text-xl font-black">
-            <div>期數</div>
+            <div>分期單位</div>
+            <div className="mt-2 grid grid-cols-2 gap-2">
+              <button className={`segment-button ${installmentUnit === "period" ? "is-active" : ""}`} type="button" onClick={() => setInstallmentUnit("period")}>按期</button>
+              <button className={`segment-button ${installmentUnit === "month" ? "is-active" : ""}`} type="button" onClick={() => setInstallmentUnit("month")}>按月</button>
+            </div>
+          </div>
+
+          <div className="block text-xl font-black">
+            <div>{installmentUnit === "month" ? "月數" : "期數"}</div>
             <div className="mt-2 grid grid-cols-5 gap-2">
               {presetPeriods.map((option) => (
-                <button className={`segment-button min-h-0 py-3 text-base ${periodOption === option.value ? "is-active" : ""}`} key={option.value} type="button" onClick={() => setPeriodOption(option.value)}>{option.label}</button>
+                <button className={`segment-button min-h-0 py-3 text-base ${periodOption === option.value ? "is-active" : ""}`} key={option.value} type="button" onClick={() => setPeriodOption(option.value)}>{installmentUnit === "month" && option.value !== "custom" ? option.label.replace("期", "月") : option.label}</button>
               ))}
             </div>
-            {periodOption === "custom" ? <input className="mt-3" type="number" min="1" value={customPeriodCount} onChange={(e) => setCustomPeriodCount(e.target.value)} placeholder="輸入其他期數" /> : null}
+            {periodOption === "custom" ? <input className="mt-3" type="number" min="1" value={customPeriodCount} onChange={(e) => setCustomPeriodCount(e.target.value)} placeholder={installmentUnit === "month" ? "輸入其他月數" : "輸入其他期數"} /> : null}
           </div>
 
           {loanType === "gold" ? (
@@ -193,6 +203,7 @@ export default function CalculatorClient({ mode, slug, ownerName, settings = def
           <div className="result-main-value">{format(result.actualReceivedAmount)} <small>元</small></div>
           <ResultLine label="借款金額" value={`${format(result.loanAmount)} 元`} />
           <ResultLine label={`前扣利息（${result.preDeductPeriods}期）`} value={`- ${format(result.interestAmount)} 元`} />
+          <ResultLine label="分期方式" value={result.installmentUnit === "month" ? `${result.periodCount} 月，每 30 天一期` : `${result.periodCount} 期，每 ${result.installmentDays} 天一期`} />
           <ResultLine label="其他扣款" value={`- ${format(result.otherDeductionsTotal + result.vehicleFee + result.goldDeduction)} 元`} />
           <ResultLine label="總扣款" value={`- ${format(result.totalDeductions)} 元`} negative />
           <ResultLine label="客人實拿" value={`${format(result.actualReceivedAmount)} 元`} positive />

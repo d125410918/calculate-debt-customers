@@ -14,34 +14,39 @@ export default async function CustomerDetailPage({ params }: { params: { slug: s
   if (!customer) notFound();
 
   return (
-    <main className="mx-auto max-w-5xl px-4 py-8">
-      <section className="card p-5">
-        <div className="flex items-center justify-between gap-3">
-          <h1 className="text-2xl font-bold">{customer.name}</h1>
-          <Link className="text-blue-700" href={`/u/${owner.slug}/customers`}>回客戶列表</Link>
-        </div>
+    <main className="app-main app-stack">
+      <section className="app-hero">
+        <div className="app-hero-icon">人</div>
+        <div><div className="app-hero-title">{customer.name}</div><div className="app-hero-subtitle">客戶資料與借款案件</div></div>
+      </section>
+      <Link className="app-notice" href={`/u/${owner.slug}/customers`}>回客戶列表</Link>
 
-        <div className="mt-5">
-          <CustomerEditor slug={owner.slug} customer={customer} />
-        </div>
+      <section className="app-card">
+        <h2 className="app-title">基本資料</h2>
+        <CustomerEditor slug={owner.slug} customer={customer} />
+      </section>
 
-        <div className="mt-6">
-          <h2 className="text-xl font-bold">借款案件</h2>
-          <div className="mt-3 space-y-3">
-            {customer.loans.map((loan) => (
-              <Link className="block rounded-xl border p-4 hover:bg-slate-50" href={`/u/${owner.slug}/loans/${loan.id}`} key={loan.id}>
-                <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <div className="font-bold">{loan.loanType}｜原始本金 {loan.principalOriginal.toLocaleString("zh-TW")}</div>
-                    <div className="text-sm text-slate-500">建立日期 {loan.createdAt.toISOString().slice(0, 10)}</div>
-                  </div>
-                  <div className="text-sm">剩餘本金 {loan.principalRemaining.toLocaleString("zh-TW")}｜{loan.status}</div>
-                </div>
-              </Link>
-            ))}
-          </div>
+      <section className="app-card">
+        <h2 className="app-title">借款案件</h2>
+        <div className="mobile-list">
+          {customer.loans.length === 0 ? <p className="app-subtitle">目前沒有案件。</p> : null}
+          {customer.loans.map((loan) => (
+            <Link className="data-card" href={`/u/${owner.slug}/loans/${loan.id}`} key={loan.id}>
+              <div className="data-title">{loan.loanType}｜{loan.status}</div>
+              <div className="data-meta">建立日期 {loan.createdAt.toISOString().slice(0, 10)}</div>
+              <div className="metric-grid mt-3">
+                <Metric label="原始本金" value={loan.principalOriginal.toLocaleString("zh-TW")} />
+                <Metric label="剩餘本金" value={loan.principalRemaining.toLocaleString("zh-TW")} green />
+                <Metric label="實拿金額" value={loan.actualReceivedAmount.toLocaleString("zh-TW")} />
+              </div>
+            </Link>
+          ))}
         </div>
       </section>
     </main>
   );
+}
+
+function Metric({ label, value, green = false }: { label: string; value: string; green?: boolean }) {
+  return <div className="metric-card"><div className="metric-label">{label}</div><div className={`metric-value ${green ? "green" : ""}`}>{value}</div></div>;
 }

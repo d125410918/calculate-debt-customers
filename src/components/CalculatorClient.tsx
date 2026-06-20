@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { calculateDebt, defaultSettings, type CalculatorSettingsInput, type CalculationResult, type ExtraDeductionInput, type LoanType } from "@/lib/debt";
+import { calculateDebt, defaultSettings, getAutoPreDeductPeriods, type CalculatorSettingsInput, type CalculationResult, type ExtraDeductionInput, type LoanType } from "@/lib/debt";
 
 type Props = {
   mode: "original" | "user";
@@ -29,7 +29,7 @@ export default function CalculatorClient({ mode, slug, ownerName, settings = def
   const [customPeriodCount, setCustomPeriodCount] = useState("6");
   const periodCount = periodOption === "custom" ? customPeriodCount : periodOption;
   const [startDate, setStartDate] = useState(today);
-  const [preDeductPeriods, setPreDeductPeriods] = useState(String(settings.normalPreDeductPeriods));
+  const [preDeductPeriods, setPreDeductPeriods] = useState(String(getAutoPreDeductPeriods(today)));
   const [goldDeduction, setGoldDeduction] = useState("0");
   const [customerName, setCustomerName] = useState("");
   const [extraDeductions, setExtraDeductions] = useState<ExtraDeductionInput[]>([]);
@@ -46,6 +46,11 @@ export default function CalculatorClient({ mode, slug, ownerName, settings = def
 
   function format(value: number) {
     return value.toLocaleString("zh-TW");
+  }
+
+  function changeStartDate(value: string) {
+    setStartDate(value);
+    setPreDeductPeriods(String(getAutoPreDeductPeriods(value)));
   }
 
   function addDeduction() {
@@ -94,7 +99,7 @@ export default function CalculatorClient({ mode, slug, ownerName, settings = def
         <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <h1 className="text-2xl font-bold">{mode === "original" ? "原始試算頁" : `${ownerName ?? slug} 還款試算`}</h1>
-            <p className="mt-1 text-sm text-slate-600">每萬元 750 元為 30 天利息，一期 {settings.periodDays} 天。分期表會把完整期數利息平均放入每期總還款。</p>
+            <p className="mt-1 text-sm text-slate-600">每萬元 750 元為 30 天利息，一期 {settings.periodDays} 天。分期採等額本息，最後一期自動歸零。</p>
           </div>
           {mode === "user" && slug ? <a className="text-sm text-blue-700" href={`/u/${slug}/customers`}>客戶列表</a> : null}
         </div>
@@ -123,11 +128,12 @@ export default function CalculatorClient({ mode, slug, ownerName, settings = def
           </div>
 
           <label className="block text-sm font-medium">起算日
-            <input className="mt-1 w-full rounded-lg border px-3 py-2" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+            <input className="mt-1 w-full rounded-lg border px-3 py-2" type="date" value={startDate} onChange={(e) => changeStartDate(e.target.value)} />
           </label>
 
           <label className="block text-sm font-medium">前扣期數
             <input className="mt-1 w-full rounded-lg border px-3 py-2" type="number" min="0" value={preDeductPeriods} onChange={(e) => setPreDeductPeriods(e.target.value)} />
+            <span className="mt-1 block text-xs text-slate-500">29日到月底、1日到5日自動三期；6日到28日自動兩期，可手動覆蓋。</span>
           </label>
 
           {loanType === "gold" ? (
@@ -181,9 +187,9 @@ export default function CalculatorClient({ mode, slug, ownerName, settings = def
                   <th className="border px-3 py-2">期數</th>
                   <th className="border px-3 py-2">到期日</th>
                   <th className="border px-3 py-2">期初本金</th>
-                  <th className="border px-3 py-2">均攤利息</th>
-                  <th className="border px-3 py-2">總還款</th>
-                  <th className="border px-3 py-2">回本</th>
+                  <th className="border px-3 py-2">利息</th>
+                  <th className="border px-3 py-2">還款額</th>
+                  <th className="border px-3 py-2">回本金</th>
                   <th className="border px-3 py-2">剩餘本金</th>
                 </tr>
               </thead>

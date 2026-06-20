@@ -31,24 +31,13 @@ export default function CustomerEditor({ slug, customer }: Props) {
   }
 
   return (
-    <div className="rounded-xl border bg-slate-50 p-4">
-      <h2 className="font-bold">客戶資料</h2>
-      <div className="mt-3 grid gap-3 sm:grid-cols-2">
-        <label className="text-sm font-medium">姓名
-          <input className="mt-1 w-full rounded-lg border px-3 py-2" value={name} onChange={(e) => setName(e.target.value)} />
-        </label>
-        <label className="text-sm font-medium">電話
-          <input className="mt-1 w-full rounded-lg border px-3 py-2" value={phone} onChange={(e) => setPhone(e.target.value)} />
-        </label>
-        <label className="text-sm font-medium sm:col-span-2">地址
-          <input className="mt-1 w-full rounded-lg border px-3 py-2" value={address} onChange={(e) => setAddress(e.target.value)} />
-        </label>
-        <label className="text-sm font-medium sm:col-span-2">備註
-          <textarea className="mt-1 w-full rounded-lg border px-3 py-2" rows={3} value={note} onChange={(e) => setNote(e.target.value)} />
-        </label>
-      </div>
-      <button className="mt-3 rounded-lg bg-slate-900 px-4 py-2 text-white" type="button" onClick={save}>儲存資料</button>
-      {message ? <span className="ml-3 text-sm text-slate-600">{message}</span> : null}
+    <div className="app-grid">
+      <label className="app-label">姓名<input className="app-input" value={name} onChange={(e) => setName(e.target.value)} /></label>
+      <label className="app-label">電話<input className="app-input" value={phone} onChange={(e) => setPhone(e.target.value)} /></label>
+      <label className="app-label">地址<input className="app-input" value={address} onChange={(e) => setAddress(e.target.value)} /></label>
+      <label className="app-label">備註<textarea className="app-input" rows={3} value={note} onChange={(e) => setNote(e.target.value)} /></label>
+      <button className="app-button primary full" type="button" onClick={save}>儲存資料</button>
+      {message ? <p className="app-subtitle">{message}</p> : null}
     </div>
   );
 }

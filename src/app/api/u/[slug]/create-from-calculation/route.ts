@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { calculateDebt, defaultSettings, type CalculateInput, type CalculatorSettingsInput } from "@/lib/debt";
+import { addDays, calculateDebt, dateFromText, defaultSettings, type CalculateInput, type CalculatorSettingsInput } from "@/lib/debt";
 import { prisma } from "@/lib/prisma";
 
 export async function POST(request: Request, { params }: { params: { slug: string } }) {
@@ -30,6 +30,8 @@ export async function POST(request: Request, { params }: { params: { slug: strin
       : defaultSettings;
 
     const result = calculateDebt({ ...input, customerName }, settings);
+    const startDate = dateFromText(input.startDate);
+    const nextDueDate = dateFromText(addDays(input.startDate, settings.periodDays));
 
     const saved = await prisma.$transaction(async (tx) => {
       const customer = await tx.customer.create({
@@ -50,7 +52,10 @@ export async function POST(request: Request, { params }: { params: { slug: strin
           interestPer10000For30Days: settings.interestPer10000For30Days,
           periodDays: settings.periodDays,
           periodCount: result.periodCount,
-          startDate: new Date(input.startDate + "T00:00:00"),
+          startDate,
+          lastInterestCalcDate: startDate,
+          nextDueDate,
+          currentAccruedInterest: 0,
           status: "active"
         }
       });
@@ -63,7 +68,7 @@ export async function POST(request: Request, { params }: { params: { slug: strin
           loanType: input.loanType,
           loanAmount: result.loanAmount,
           periodCount: result.periodCount,
-          startDate: new Date(input.startDate + "T00:00:00"),
+          startDate,
           preDeductPeriods: result.preDeductPeriods,
           interestAmount: result.interestAmount,
           vehicleFee: result.vehicleFee,
@@ -95,7 +100,7 @@ export async function POST(request: Request, { params }: { params: { slug: strin
             create: result.planItems.map((item) => ({
               ownerId: owner.id,
               periodIndex: item.periodIndex,
-              dueDate: new Date(item.dueDate + "T00:00:00"),
+              dueDate: dateFromText(item.dueDate),
               principalBefore: item.principalBefore,
               interestDue: item.interestDue,
               paymentAmount: item.paymentAmount,

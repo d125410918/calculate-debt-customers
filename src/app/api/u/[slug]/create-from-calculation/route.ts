@@ -31,15 +31,10 @@ export async function POST(request: Request, { params }: { params: { slug: strin
 
     const result = calculateDebt({ ...input, customerName }, settings);
     const startDate = dateFromText(input.startDate);
-    const nextDueDate = dateFromText(addDays(input.startDate, settings.periodDays));
+    const nextDueDate = dateFromText(addDays(input.startDate, result.installmentDays));
 
     const saved = await prisma.$transaction(async (tx) => {
-      const customer = await tx.customer.create({
-        data: {
-          ownerId: owner.id,
-          name: customerName
-        }
-      });
+      const customer = await tx.customer.create({ data: { ownerId: owner.id, name: customerName } });
 
       const loan = await tx.loan.create({
         data: {
@@ -52,6 +47,8 @@ export async function POST(request: Request, { params }: { params: { slug: strin
           interestPer10000For30Days: settings.interestPer10000For30Days,
           periodDays: settings.periodDays,
           periodCount: result.periodCount,
+          installmentUnit: result.installmentUnit,
+          installmentDays: result.installmentDays,
           startDate,
           lastInterestCalcDate: startDate,
           nextDueDate,
@@ -78,9 +75,7 @@ export async function POST(request: Request, { params }: { params: { slug: strin
           actualReceivedAmount: result.actualReceivedAmount,
           createdCustomerId: customer.id,
           createdLoanId: loan.id,
-          extraDeductions: {
-            create: input.extraDeductions.map((item) => ({ name: item.name || "其他扣款", amount: Math.round(Number(item.amount) || 0) }))
-          }
+          extraDeductions: { create: input.extraDeductions.map((item) => ({ name: item.name || "其他扣款", amount: Math.round(Number(item.amount) || 0) })) }
         }
       });
 

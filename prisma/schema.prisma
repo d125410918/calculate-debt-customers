@@ -1,0 +1,177 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Owner {
+  id          String   @id @default(cuid())
+  slug        String   @unique
+  displayName String
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  settings           CalculatorSetting?
+  calculationRecords CalculationRecord[]
+  customers          Customer[]
+  loans              Loan[]
+  loanPlans          LoanPlan[]
+  repayments         Repayment[]
+}
+
+model CalculatorSetting {
+  id                       String   @id @default(cuid())
+  ownerId                  String   @unique
+  interestPer10000For30Days Int     @default(750)
+  periodDays               Int      @default(15)
+  normalPreDeductPeriods   Int      @default(2)
+  specialPreDeductPeriods  Int      @default(3)
+  vehicleFee               Int      @default(2000)
+  goldFixedLoanAmount      Int      @default(50000)
+  roundingMode             String   @default("round")
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  owner Owner @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+}
+
+model CalculationRecord {
+  id                    String   @id @default(cuid())
+  ownerId               String
+  sourcePage            String
+  customerName          String?
+  loanType              String
+  loanAmount            Int
+  periodCount           Int
+  startDate             DateTime
+  preDeductPeriods      Int
+  interestAmount        Int
+  vehicleFee            Int      @default(0)
+  goldDeduction         Int      @default(0)
+  otherDeductionsTotal  Int      @default(0)
+  totalDeductions       Int
+  actualReceivedAmount  Int
+  createdCustomerId     String?
+  createdLoanId         String?
+  createdAt             DateTime @default(now())
+
+  owner           Owner @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  extraDeductions CalculationExtraDeduction[]
+}
+
+model CalculationExtraDeduction {
+  id                  String   @id @default(cuid())
+  calculationRecordId String
+  name                String
+  amount              Int
+  createdAt           DateTime @default(now())
+
+  calculationRecord CalculationRecord @relation(fields: [calculationRecordId], references: [id], onDelete: Cascade)
+}
+
+model Customer {
+  id                  String   @id @default(cuid())
+  ownerId             String
+  name                String
+  phone               String?
+  address             String?
+  note                String?
+  sourceCalculationId String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  owner Owner @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  loans Loan[]
+
+  @@index([ownerId])
+}
+
+model Loan {
+  id                         String   @id @default(cuid())
+  ownerId                    String
+  customerId                 String
+  sourceCalculationId        String?
+  loanType                   String
+  principalOriginal          Int
+  principalRemaining         Int
+  actualReceivedAmount       Int
+  interestPer10000For30Days  Int      @default(750)
+  periodDays                 Int      @default(15)
+  periodCount                Int
+  startDate                  DateTime
+  status                     String   @default("active")
+  note                       String?
+  createdAt                  DateTime @default(now())
+  updatedAt                  DateTime @updatedAt
+
+  owner      Owner @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  plans      LoanPlan[]
+  repayments Repayment[]
+
+  @@index([ownerId])
+  @@index([customerId])
+}
+
+model LoanPlan {
+  id                 String   @id @default(cuid())
+  ownerId            String
+  loanId             String
+  periodCount        Int
+  fixedPaymentAmount Int
+  totalInterest      Int
+  totalPayment       Int
+  roundingMode       String   @default("round")
+  createdAt          DateTime @default(now())
+
+  owner Owner @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  loan  Loan  @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  items LoanPlanItem[]
+
+  @@index([ownerId])
+  @@index([loanId])
+}
+
+model LoanPlanItem {
+  id              String   @id @default(cuid())
+  ownerId         String
+  loanPlanId      String
+  periodIndex     Int
+  dueDate         DateTime
+  principalBefore Int
+  interestDue     Int
+  paymentAmount   Int
+  interestPaid    Int
+  principalPaid   Int
+  principalAfter  Int
+
+  loanPlan LoanPlan @relation(fields: [loanPlanId], references: [id], onDelete: Cascade)
+
+  @@index([ownerId])
+  @@index([loanPlanId])
+}
+
+model Repayment {
+  id              String   @id @default(cuid())
+  ownerId         String
+  loanId          String
+  paymentDate     DateTime
+  amount          Int
+  principalBefore Int
+  interestDue     Int
+  interestPaid    Int
+  principalPaid   Int
+  principalAfter  Int
+  note            String?
+  createdAt       DateTime @default(now())
+
+  owner Owner @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  loan  Loan  @relation(fields: [loanId], references: [id], onDelete: Cascade)
+
+  @@index([ownerId])
+  @@index([loanId])
+}
